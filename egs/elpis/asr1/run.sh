@@ -16,6 +16,7 @@ dumpdir=dump   # directory to dump full features
 N=0            # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
 verbose=1      # verbose option
 resume=        # Resume the training from snapshot
+nj=8
 
 # feature configuration
 do_delta=false
@@ -52,7 +53,7 @@ set -o pipefail
 train_set="train_nodev"
 train_dev="train_dev"
 lm_test="test"
-recog_set="train_dev test"
+recog_set="train_dev"
 
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
     echo "stage -1: Data Download"
@@ -64,16 +65,14 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 0: Data preparation"
-    mkdir -p data/{train,test} exp
+    mkdir -p data/train exp
 
     if [ ! -f ${an4_root}/README ]; then
         echo Cannot find an4 root! Exiting...
         exit 1
     fi
 
-    python local/data_prep.py ${an4_root} ${KALDI_ROOT}/tools/sph2pipe_v2.5/sph2pipe
-
-    for x in test train; do
+    for x in train; do
         for f in text wav.scp utt2spk; do
             sort data/${x}/${f} -o data/${x}/${f}
         done
@@ -89,8 +88,8 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     echo "stage 1: Feature Generation"
     fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
-    for x in test train; do
-        steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 8 --write_utt2num_frames true \
+    for x in train; do
+        steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} --write_utt2num_frames true \
             data/${x} exp/make_fbank/${x} ${fbankdir}
         utils/fix_data_dir.sh data/${x}
     done
@@ -104,13 +103,13 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
 
     # dump features
-    dump.sh --cmd "$train_cmd" --nj 8 --do_delta ${do_delta} \
+    dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
         data/${train_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
-    dump.sh --cmd "$train_cmd" --nj 8 --do_delta ${do_delta} \
+    dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
         data/${train_dev}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
-        dump.sh --cmd "$train_cmd" --nj 8 --do_delta ${do_delta} \
+        dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
             data/${rtask}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/recog/${rtask} \
             ${feat_recog_dir}
     done
@@ -161,7 +160,6 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         mkdir -p ${lmdatadir}
         cut -f 2- -d" " data/${train_set}/text > ${lmdatadir}/train.txt
         cut -f 2- -d" " data/${train_dev}/text > ${lmdatadir}/valid.txt
-        cut -f 2- -d" " data/${lm_test}/text > ${lmdatadir}/test.txt
         text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
     else
         lmdatadir=data/local/lm_train
@@ -171,8 +169,6 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
             | cut -f 2- -d" " > ${lmdatadir}/train.txt
         text2token.py -s 1 -n 1 data/${train_dev}/text \
             | cut -f 2- -d" " > ${lmdatadir}/valid.txt
-        text2token.py -s 1 -n 1 data/${lm_test}/text \
-                | cut -f 2- -d" " > ${lmdatadir}/test.txt
     fi
 
     ${cuda_cmd} --gpu ${ngpu} ${lmexpdir}/train.log \
@@ -185,7 +181,6 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         --tensorboard-dir tensorboard/${lmexpname} \
         --train-label ${lmdatadir}/train.txt \
         --valid-label ${lmdatadir}/valid.txt \
-        --test-label ${lmdatadir}/test.txt \
         --resume ${lm_resume} \
         --dict ${lmdict}
 fi
@@ -223,7 +218,7 @@ fi
 
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     echo "stage 5: Decoding"
-    nj=8
+    nj=${nj}
 
     pids=() # initialize pids
     for rtask in ${recog_set}; do
