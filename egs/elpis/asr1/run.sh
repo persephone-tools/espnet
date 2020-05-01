@@ -10,13 +10,13 @@
 backend=pytorch
 stage=-1       # start from -1 if you need to start from data download
 stop_stage=100
-ngpu=1         # number of gpus ("0" uses cpu, otherwise use gpu)
+ngpu=0         # number of gpus ("0" uses cpu, otherwise use gpu)
 debugmode=1
 dumpdir=dump   # directory to dump full features
 N=0            # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
 verbose=1      # verbose option
 resume=        # Resume the training from snapshot
-nj=8
+nj=1
 
 # feature configuration
 do_delta=false
@@ -55,22 +55,11 @@ train_dev="train_dev"
 lm_test="test"
 recog_set="train_dev"
 
-if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
-    echo "stage -1: Data Download"
-    mkdir -p ${datadir}
-    local/download_and_untar.sh ${datadir} ${data_url}
-fi
-
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 0: Data preparation"
     mkdir -p data/train exp
-
-    if [ ! -f ${an4_root}/README ]; then
-        echo Cannot find an4 root! Exiting...
-        exit 1
-    fi
 
     for x in train; do
         for f in text wav.scp utt2spk; do
@@ -95,8 +84,8 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     done
 
     # make a dev set
-    utils/subset_data_dir.sh --first data/train 100 data/${train_dev}
-    n=$(($(wc -l < data/train/text) - 100))
+    utils/subset_data_dir.sh --first data/train 1 data/${train_dev}
+    n=$(($(wc -l < data/train/text) - 1))
     utils/subset_data_dir.sh --last data/train ${n} data/${train_set}
 
     # compute global CMVN
@@ -228,6 +217,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
             recog_opts="--word-rnnlm ${lmexpdir}/rnnlm.model.best"
         else
             recog_opts="--rnnlm ${lmexpdir}/rnnlm.model.best"
+	    #recog_opts=""
         fi
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
 
