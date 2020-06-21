@@ -16,17 +16,17 @@ dumpdir=dump   # directory to dump full features
 N=0            # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
 verbose=1      # verbose option
 resume=        # Resume the training from snapshot
-nj=1
+nj=4
 
 # feature configuration
 do_delta=false
 
-train_config=conf/train_mtlalpha1.0.yaml
+train_config=conf/train_mtlalpha0.5.yaml
 lm_config=conf/lm.yaml
-decode_config=conf/decode_ctcweight1.0.yaml
+decode_config=conf/decode_ctcweight0.5.yaml
 
 # rnnlm related
-use_wordlm=true     # false means to train/use a character LM
+use_wordlm=false     # false means to train/use a character LM
 lm_vocabsize=100    # effective only for word LMs
 lmtag=              # tag for managing LMs
 lm_resume=          # specify a snapshot file to resume LM training
@@ -53,7 +53,8 @@ set -o pipefail
 train_set="train_nodev"
 train_dev="train_dev"
 lm_test="test"
-recog_set="train_dev"
+#recog_set="train_dev"
+recog_set="test"
 
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
@@ -61,7 +62,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     echo "stage 0: Data preparation"
     mkdir -p data/train exp
 
-    for x in train; do
+    for x in train "${recog_set}"; do
         for f in text wav.scp utt2spk; do
             sort data/${x}/${f} -o data/${x}/${f}
         done
@@ -77,7 +78,7 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     echo "stage 1: Feature Generation"
     fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
-    for x in train; do
+    for x in train "${recog_set}"; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} --write_utt2num_frames true \
             data/${x} exp/make_fbank/${x} ${fbankdir}
         utils/fix_data_dir.sh data/${x}
@@ -217,7 +218,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
             recog_opts="--word-rnnlm ${lmexpdir}/rnnlm.model.best"
         else
             recog_opts="--rnnlm ${lmexpdir}/rnnlm.model.best"
-	    #recog_opts=""
         fi
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
 
