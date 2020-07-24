@@ -21,11 +21,12 @@ nj=4
 # feature configuration
 do_delta=false
 
-train_config=conf/train_mtlalpha0.5.yaml
+train_config=conf/train_mtlalpha1.0.yaml
 lm_config=conf/lm.yaml
-decode_config=conf/decode_ctcweight0.5.yaml
+decode_config=conf/decode_ctcweight1.0.yaml
 
 # rnnlm related
+use_lm=false
 use_wordlm=false     # false means to train/use a character LM
 lm_vocabsize=100    # effective only for word LMs
 lmtag=              # tag for managing LMs
@@ -53,7 +54,6 @@ set -o pipefail
 train_set="train_nodev"
 train_dev="train_dev"
 lm_test="test"
-#recog_set="train_dev"
 recog_set="test"
 
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
@@ -141,7 +141,7 @@ lmexpname=train_rnnlm_${backend}_${lmtag}
 lmexpdir=exp/${lmexpname}
 mkdir -p ${lmexpdir}
 
-if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
+if [ ${use_lm} = true ] && [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     echo "stage 3: LM Preparation"
 
     if [ ${use_wordlm} = true ]; then
@@ -213,16 +213,22 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     pids=() # initialize pids
     for rtask in ${recog_set}; do
     (
-        decode_dir=decode_${rtask}_$(basename ${decode_config%.*})_${lmtag}
-        if [ ${use_wordlm} = true ]; then
-            recog_opts="--word-rnnlm ${lmexpdir}/rnnlm.model.best"
+        if  [ ${use_lm} = true ]; then
+            decode_dir=decode_${rtask}_$(basename ${decode_config%.*})_${lmtag}
+            if [ ${use_wordlm} = true ]; then
+                recog_opts="--word-rnnlm ${lmexpdir}/rnnlm.model.best"
+            else
+                recog_opts="--rnnlm ${lmexpdir}/rnnlm.model.best"
+            fi
         else
-            recog_opts="--rnnlm ${lmexpdir}/rnnlm.model.best"
+            recog_opts=""
+            decode_dir=decode_${rtask}_$(basename ${decode_config%.*})_nolm
         fi
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
 
         # split data
         splitjson.py --parts ${nj} ${feat_recog_dir}/data.json
+        echo "Finished splitting data."
 
         #### use CPU for decoding
         ngpu=0
@@ -239,11 +245,13 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
             --model ${expdir}/results/${recog_model} \
             ${recog_opts}
 
+        echo "Finished decoding."
         score_sclite.sh ${expdir}/${decode_dir} ${dict}
+        echo "Finished scoring."
 
     ) &
     pids+=($!) # store background pids
     done
     i=0; for pid in "${pids[@]}"; do wait ${pid} || ((++i)); done
-    [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
+    #[ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
 fi
