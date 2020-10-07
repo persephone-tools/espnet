@@ -21,9 +21,9 @@ nj=4
 # feature configuration
 do_delta=false
 
-train_config=conf/train_mtlalpha1.0.yaml
+train_config=conf/train_mtlalpha0.5.yaml
 lm_config=conf/lm.yaml
-decode_config=conf/decode_ctcweight1.0.yaml
+decode_config=conf/decode_ctcweight0.5.yaml
 
 # rnnlm related
 use_lm=false
@@ -85,7 +85,7 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     done
 
     # make a dev set
-    utils/subset_data_dir.sh --first data/train 1 data/${train_dev}
+    utils/subset_data_dir.sh --first data/train 100 data/${train_dev}
     n=$(($(wc -l < data/train/text) - 1))
     utils/subset_data_dir.sh --last data/train ${n} data/${train_set}
 
