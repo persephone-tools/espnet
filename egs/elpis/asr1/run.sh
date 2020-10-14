@@ -85,7 +85,8 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     done
 
     # make a dev set
-    utils/subset_data_dir.sh --first data/train 100 data/${train_dev}
+    n=$(wc -l < data/test/text)
+    utils/subset_data_dir.sh --first data/train ${n} data/${train_dev}
     n=$(($(wc -l < data/train/text) - 1))
     utils/subset_data_dir.sh --last data/train ${n} data/${train_set}
 
