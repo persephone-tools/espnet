@@ -21,9 +21,9 @@ nj=4
 # feature configuration
 do_delta=false
 
-train_config=conf/train_mtlalpha1.0.yaml
+train_config=conf/train_mtlalpha0.5.yaml
 lm_config=conf/lm.yaml
-decode_config=conf/decode_ctcweight1.0.yaml
+decode_config=conf/decode_ctcweight0.5.yaml
 
 # rnnlm related
 use_lm=false
