@@ -117,13 +117,15 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     wc -l ${dict}
 
     # make json labels
-    data2json.sh --feat ${feat_tr_dir}/feats.scp \
+    data2json.sh --feat ${feat_tr_dir}/feats.scp --allow-one-column true \
          data/${train_set} ${dict} > ${feat_tr_dir}/data.json
-    data2json.sh --feat ${feat_dt_dir}/feats.scp \
+
+    data2json.sh --feat ${feat_dt_dir}/feats.scp --allow-one-column true \
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
+
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
-        data2json.sh --feat ${feat_recog_dir}/feats.scp \
+        data2json.sh --feat ${feat_recog_dir}/feats.scp --allow-one-column true \
             data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
 fi
